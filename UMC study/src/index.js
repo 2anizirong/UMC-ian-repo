@@ -1,28 +1,45 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
-import { handleUserSignUp } from "./controllers/user.controller.js";
+import { StatusCodes } from "http-status-codes";
+import { bodyToUser } from "./dtos/user.dto.js";
+import { userSignUp } from "./services/user.service.js";
 import { handleReviewSignUp } from "./controllers/review.controller.js";
 import { handleChallengeSignUp } from "./controllers/challenge.controller.js";
 import { handleListStoreMissions } from "./controllers/mission.controller.js";
-import { challengeSignUp } from "./services/challenge.service.js"; // 특정 사용자의 진행 중인 미션 목록 컨트롤러 추가
-import { handleUpdateMissionCompletion } from './controllers/mission.controller.js'; // 미션 완료 처리 컨트롤러 추가
+import { challengeSignUp } from "./services/challenge.service.js";
+import { handleUpdateMissionCompletion } from "./controllers/mission.controller.js";
+import { DuplicateUserEmailError } from './errors.js';
 
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT;
+const port = process.env.PORT || 3000;
 
 app.use(cors()); // CORS 허용
-app.use(express.static("public")); // 정적 파일 접근
-app.use(express.json()); // JSON 요청 본문 파싱
-app.use(express.urlencoded({ extended: false })); // URL 인코딩된 본문 파싱
+
+// 공통 응답 헬퍼 함수 등록
+app.use((req, res, next) => {
+  res.success = (success) => {
+    return res.json({ resultType: "SUCCESS", error: null, success });
+  };
+
+  res.error = ({ errorCode = "unknown", reason = null, data = null }) => {
+    return res.json({
+      resultType: "FAIL",
+      error: { errorCode, reason, data },
+      success: null,
+    });
+  };
+
+  next();
+});
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
 });
 
-app.post("/api/v1/users/signup", handleUserSignUp);
+// 다른 API 핸들러들
 app.post("/api/v1/reviews", handleReviewSignUp); // 리뷰 등록 API
 app.post("/api/v1/missions/challenge", handleChallengeSignUp); // 미션 도전 API
 
@@ -35,6 +52,22 @@ app.get("/api/v1/users/:userId/missions/in-progress", challengeSignUp);
 // 특정 사용자의 진행 중인 미션 완료로 업데이트 API 추가
 app.put('/api/v1/users/:userId/missions/:missionId/complete', handleUpdateMissionCompletion);
 
+// 서버 시작
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
+});
+
+/**
+ * 전역 오류를 처리하기 위한 미들웨어
+ */
+app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  res.status(err.statusCode || 500).error({
+    errorCode: err.errorCode || "unknown",
+    reason: err.reason || err.message || null,
+    data: err.data || null,
+  });
 });

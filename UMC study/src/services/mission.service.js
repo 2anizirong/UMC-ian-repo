@@ -1,3 +1,4 @@
+// mission.service.js
 import { 
     getStoreMissions, 
     addMission, 
@@ -9,6 +10,7 @@ import {
     responseFromMissions, 
     responseFromMission 
 } from '../dtos/mission.dto.js';
+import { MissionNotFoundError } from "../errors.js";
 
 // 특정 storeId에 속한 미션 목록을 가져오는 서비스
 export const listStoreMissions = async (storeId, cursor) => {
@@ -25,12 +27,18 @@ export const createMission = async (storeId, title, description, pointsReward) =
 // 미션 상태를 업데이트하는 서비스
 export const updateMissionCompletion = async (missionId, isCompleted) => {
     const mission = await updateMissionStatus(missionId, isCompleted ? 'yes' : 'no');
+    if (!mission) {
+        throw new MissionNotFoundError("해당 미션을 찾을 수 없습니다.", { missionId });
+    }
     return responseFromMission(mission); // 변환된 미션 데이터 반환
 };
 
 // 특정 미션을 삭제하는 서비스
 export const removeMission = async (missionId) => {
     const mission = await deleteMission(missionId);
+    if (!mission) {
+        throw new MissionNotFoundError("해당 미션을 찾을 수 없습니다.", { missionId });
+    }
     return responseFromMission(mission); // 삭제된 미션 데이터 반환
 };
 
@@ -38,7 +46,7 @@ export const removeMission = async (missionId) => {
 export const markMissionAsCompleted = async (userId, missionId) => {
     const result = await completeUserMission(userId, missionId);
     if (result.count === 0) {
-        throw new Error('해당 미션을 찾을 수 없거나 이미 완료된 상태입니다.');
+        throw new MissionNotFoundError("해당 미션을 찾을 수 없거나 이미 완료된 상태입니다.", { userId, missionId });
     }
     return { message: '미션이 완료되었습니다.' };
 };
